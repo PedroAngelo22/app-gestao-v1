@@ -2,18 +2,25 @@ import os
 import shutil
 from datetime import datetime
 import streamlit as st
+import sqlite3
 
+# Banco de dados SQLite para controle de usuários e histórico
+conn = sqlite3.connect('document_manager.db', check_same_thread=False)
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, user TEXT, action TEXT, file TEXT)''')
+conn.commit()
+
+# Função para criar caminho com estrutura hierárquica
 BASE_DIR = "uploads"
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
 
-# Função para criar caminho com estrutura hierárquica
 def get_project_path(project, discipline, phase):
     path = os.path.join(BASE_DIR, project, discipline, phase)
     os.makedirs(path, exist_ok=True)
     return path
 
-# Função de versionamento automático
 def save_versioned_file(file_path):
     if os.path.exists(file_path):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -21,10 +28,45 @@ def save_versioned_file(file_path):
         versioned_path = f"{base}_v{timestamp}{ext}"
         shutil.move(file_path, versioned_path)
 
-# Upload de arquivos
-st.title("Gerenciador de Documentos Inteligente (GDI)")
-st.markdown("### Upload de Arquivos")
+def log_action(user, action, file):
+    c.execute("INSERT INTO logs (timestamp, user, action, file) VALUES (?, ?, ?, ?)",
+              (datetime.now().isoformat(), user, action, file))
+    conn.commit()
 
+# Interface de login
+st.title("Gerenciador de Documentos Inteligente")
+st.markdown("### Login")
+
+login_user = st.text_input("Usuário")
+login_pass = st.text_input("Senha", type="password")
+if st.button("Entrar"):
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (login_user, login_pass))
+    if c.fetchone():
+        st.session_state["authenticated"] = True
+        st.session_state["username"] = login_user
+        st.experimental_rerun()
+    else:
+        st.error("Credenciais inválidas.")
+
+st.markdown("### Novo Cadastro")
+register_user = st.text_input("Novo Usuário")
+register_pass = st.text_input("Nova Senha", type="password")
+if st.button("Registrar"):
+    try:
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (register_user, register_pass))
+        conn.commit()
+        st.success("Usuário registrado com sucesso.")
+    except:
+        st.error("Usuário já existe.")
+
+# Verifica autenticação
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    st.stop()
+
+username = st.session_state["username"]
+
+# Upload de arquivos
+st.markdown("### Upload de Arquivos")
 with st.form("upload_form"):
     project = st.text_input("Projeto")
     discipline = st.text_input("Disciplina")
@@ -40,6 +82,7 @@ with st.form("upload_form"):
         with open(file_path, "wb") as f:
             f.write(uploaded_file.read())
         st.success(f"Arquivo '{filename}' salvo com sucesso em {path}.")
+        log_action(username, "upload", file_path)
 
 # Pesquisa de arquivos
 st.markdown("### Pesquisa de Documentos")
@@ -65,12 +108,13 @@ if keyword:
                     st.download_button(label="📥 Baixar Imagem", data=f, file_name=os.path.basename(file))
                 else:
                     st.download_button(label="📥 Baixar Arquivo", data=f, file_name=os.path.basename(file))
+            log_action(username, "download", file)
     else:
         st.warning("Nenhum arquivo encontrado com esse termo.")
 
-# Autenticação básica (simples para protótipo)
-st.sidebar.markdown("### Acesso Restrito")
-password = st.sidebar.text_input("Senha", type="password")
-if password != "admin123":
-    st.warning("Acesso restrito. Informe a senha correta na barra lateral.")
-    st.stop()
+# Histórico de ações
+st.markdown("### Histórico de Ações")
+if st.checkbox("Mostrar log de ações"):
+    logs = c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100").fetchall()
+    for log in logs:
+        st.write(f"{log[0]} | Usuário: {log[1]} | Ação: {log[2]} | Arquivo: {log[3]}")
