@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Gerenciador de Documentos</title></head>
+<body>
+  <h2>Upload de Documento</h2>
+  <form method="post" action="/upload" enctype="multipart/form-data">
+    Projeto: <input name="project"><br>
+    Disciplina: <input name="discipline"><br>
+    Fase: <input name="phase"><br>
+    Arquivo: <input type="file" name="file"><br>
+    <input type="submit" value="Enviar">
+  </form>
+
+  <h2>Pesquisar Documentos</h2>
+  <form method="get" action="/search">
+    Palavra-chave: <input name="keyword">
+    <input type="submit" value="Buscar">
+  </form>
+</body>
+</html>
