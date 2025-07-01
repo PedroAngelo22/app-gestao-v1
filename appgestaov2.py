@@ -40,6 +40,8 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "registration_mode" not in st.session_state:
     st.session_state.registration_mode = False
+if "registration_unlocked" not in st.session_state:
+    st.session_state.registration_unlocked = False
 
 if not st.session_state.authenticated and not st.session_state.registration_mode:
     st.subheader("Login")
@@ -63,7 +65,14 @@ if not st.session_state.authenticated and not st.session_state.registration_mode
 elif st.session_state.registration_mode and not st.session_state.authenticated:
     st.subheader("Registro de Novo Usuário")
     master_pass = st.text_input("Senha Mestra", type="password")
-    if master_pass == "#Heisenberg7":
+    if st.button("Liberar Acesso"):
+        if master_pass == "#Heisenberg7":
+            st.session_state.registration_unlocked = True
+            st.success("Acesso liberado. Preencha os dados do novo usuário.")
+        else:
+            st.error("Senha Mestra incorreta.")
+
+    if st.session_state.registration_unlocked:
         new_user = st.text_input("Novo Usuário")
         new_pass = st.text_input("Nova Senha", type="password")
         if st.button("Criar usuário"):
@@ -75,11 +84,12 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
                 conn.commit()
                 st.success("Usuário registrado com sucesso.")
                 st.session_state.registration_mode = False
+                st.session_state.registration_unlocked = False
                 st.rerun()
-    elif master_pass != "":
-        st.error("Senha Mestra incorreta.")
+
     if st.button("Voltar ao Login"):
         st.session_state.registration_mode = False
+        st.session_state.registration_unlocked = False
         st.rerun()
 
 elif st.session_state.authenticated:
