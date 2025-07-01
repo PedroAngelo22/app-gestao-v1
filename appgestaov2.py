@@ -1,17 +1,43 @@
 import os
 import shutil
+import smtplib
 from datetime import datetime
 import streamlit as st
 import sqlite3
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# Banco de dados SQLite para controle de usuários e histórico
+# Banco de dados SQLite
 conn = sqlite3.connect('document_manager.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, user TEXT, action TEXT, file TEXT)''')
 conn.commit()
 
-# Função para criar caminho com estrutura hierárquica
+# Parâmetros de envio de e-mail (ajuste conforme o serviço SMTP utilizado)
+EMAIL_FROM = "seu_email@provedor.com"
+EMAIL_PASSWORD = "sua_senha"
+EMAIL_SMTP = "smtp.provedor.com"
+EMAIL_PORT = 587
+EMAIL_TO = "destinatario@provedor.com"
+
+# Funções auxiliares
+def enviar_email_upload(usuario, arquivo):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_FROM
+        msg['To'] = EMAIL_TO
+        msg['Subject'] = f"Novo upload realizado por {usuario}"
+        body = f"O usuário {usuario} realizou o upload do arquivo: {arquivo}"
+        msg.attach(MIMEText(body, 'plain'))
+        server = smtplib.SMTP(EMAIL_SMTP, EMAIL_PORT)
+        server.starttls()
+        server.login(EMAIL_FROM, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        st.warning(f"Erro ao enviar e-mail: {e}")
+
 BASE_DIR = "uploads"
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
@@ -33,9 +59,8 @@ def log_action(user, action, file):
               (datetime.now().isoformat(), user, action, file))
     conn.commit()
 
-# Interface de login ou registro protegido
+# Controle de sessão
 st.title("Gerenciador de Documentos Inteligente")
-
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "registration_mode" not in st.session_state:
@@ -43,6 +68,7 @@ if "registration_mode" not in st.session_state:
 if "registration_unlocked" not in st.session_state:
     st.session_state.registration_unlocked = False
 
+# Login e registro
 if not st.session_state.authenticated and not st.session_state.registration_mode:
     st.subheader("Login")
     login_user = st.text_input("Usuário")
@@ -57,7 +83,6 @@ if not st.session_state.authenticated and not st.session_state.registration_mode
             st.error("Credenciais inválidas.")
 
     st.markdown("---")
-    st.markdown("### Novo no sistema?")
     if st.button("Registrar novo usuário"):
         st.session_state.registration_mode = True
         st.rerun()
@@ -86,7 +111,6 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
                 st.session_state.registration_mode = False
                 st.session_state.registration_unlocked = False
                 st.rerun()
-
     if st.button("Voltar ao Login"):
         st.session_state.registration_mode = False
         st.session_state.registration_unlocked = False
@@ -101,7 +125,6 @@ elif st.session_state.authenticated:
         st.session_state.username = ""
         st.rerun()
 
-    # Upload de arquivos
     st.markdown("### Upload de Arquivos")
     with st.form("upload_form"):
         project = st.text_input("Projeto")
@@ -119,8 +142,8 @@ elif st.session_state.authenticated:
                 f.write(uploaded_file.read())
             st.success(f"Arquivo '{filename}' salvo com sucesso em {path}.")
             log_action(username, "upload", file_path)
+            enviar_email_upload(username, filename)
 
-    # Pesquisa de arquivos
     st.markdown("### Pesquisa de Documentos")
     keyword = st.text_input("Buscar por palavra-chave")
     if keyword:
@@ -129,28 +152,42 @@ elif st.session_state.authenticated:
             for file in files:
                 if keyword.lower() in file.lower():
                     matched_files.append(os.path.join(root, file))
-
         if matched_files:
             st.markdown("#### Resultados da busca:")
             for file in matched_files:
                 relative_path = os.path.relpath(file, BASE_DIR)
                 st.write(f"📄 {relative_path}")
                 with open(file, "rb") as f:
-                    if file.endswith(".pdf"):
-                        st.download_button(label="📥 Baixar PDF", data=f, file_name=os.path.basename(file), mime="application/pdf")
-                    elif file.endswith(('.png', '.jpg', '.jpeg')):
-                        st.image(f.read(), caption=os.path.basename(file))
-                        f.seek(0)
-                        st.download_button(label="📥 Baixar Imagem", data=f, file_name=os.path.basename(file))
-                    else:
-                        st.download_button(label="📥 Baixar Arquivo", data=f, file_name=os.path.basename(file))
+                    st.download_button(label="📥 Baixar", data=f, file_name=os.path.basename(file))
                 log_action(username, "download", file)
         else:
-            st.warning("Nenhum arquivo encontrado com esse termo.")
+            st.warning("Nenhum arquivo encontrado.")
 
-    # Histórico de ações
     st.markdown("### Histórico de Ações")
     if st.checkbox("Mostrar log de ações"):
         logs = c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100").fetchall()
         for log in logs:
             st.write(f"{log[0]} | Usuário: {log[1]} | Ação: {log[2]} | Arquivo: {log[3]}")
+
+    st.markdown("### Painel Administrativo")
+    admin_pass = st.text_input("Senha Mestra de Administração", type="password")
+    if admin_pass == "#Heisenberg7":
+        usuarios = c.execute("SELECT username FROM users").fetchall()
+        for u in usuarios:
+            user = u[0]
+            st.write(f"👤 {user}")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Excluir {user}"):
+                    c.execute("DELETE FROM users WHERE username=?", (user,))
+                    conn.commit()
+                    st.success(f"Usuário {user} removido.")
+                    st.rerun()
+            with col2:
+                newpass = st.text_input(f"Nova senha para {user}", key=f"senha_{user}")
+                if st.button(f"Redefinir senha {user}"):
+                    c.execute("UPDATE users SET password=? WHERE username=?", (newpass, user))
+                    conn.commit()
+                    st.success(f"Senha de {user} atualizada.")
+    elif admin_pass:
+        st.error("Senha mestra incorreta.")
