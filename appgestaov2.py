@@ -4,13 +4,14 @@ from datetime import datetime
 import streamlit as st
 import sqlite3
 
-# Banco de dados SQLite
+# Banco de dados SQLite para controle de usuários e histórico
 conn = sqlite3.connect('document_manager.db', check_same_thread=False)
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, email TEXT, projects TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, user TEXT, action TEXT, file TEXT)''')
 conn.commit()
 
+# Função para criar caminho com estrutura hierárquica
 BASE_DIR = "uploads"
 if not os.path.exists(BASE_DIR):
     os.makedirs(BASE_DIR)
@@ -32,41 +33,33 @@ def log_action(user, action, file):
               (datetime.now().isoformat(), user, action, file))
     conn.commit()
 
+# Interface de login ou registro protegido
 st.title("Gerenciador de Documentos Inteligente")
+
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "registration_mode" not in st.session_state:
     st.session_state.registration_mode = False
 if "registration_unlocked" not in st.session_state:
     st.session_state.registration_unlocked = False
-if "admin_mode" not in st.session_state:
-    st.session_state.admin_mode = False
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
 
-# Login, registro ou administração
-if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_authenticated:
+if not st.session_state.authenticated and not st.session_state.registration_mode:
     st.subheader("Login")
     login_user = st.text_input("Usuário")
     login_pass = st.text_input("Senha", type="password")
     if st.button("Entrar"):
         c.execute("SELECT * FROM users WHERE username=? AND password=?", (login_user, login_pass))
-        user_data = c.fetchone()
-        if user_data:
+        if c.fetchone():
             st.session_state.authenticated = True
             st.session_state.username = login_user
-            st.session_state.projects = user_data[3].split(",") if user_data[3] else []
             st.rerun()
         else:
             st.error("Credenciais inválidas.")
 
     st.markdown("---")
+    st.markdown("### Novo no sistema?")
     if st.button("Registrar novo usuário"):
         st.session_state.registration_mode = True
-        st.rerun()
-    if st.button("Painel Administrativo"):
-        st.session_state.admin_mode = True
-        st.session_state.admin_authenticated = False
         st.rerun()
 
 elif st.session_state.registration_mode and not st.session_state.authenticated:
@@ -82,85 +75,36 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
     if st.session_state.registration_unlocked:
         new_user = st.text_input("Novo Usuário")
         new_pass = st.text_input("Nova Senha", type="password")
-        email = st.text_input("E-mail do usuário")
-        projetos = st.text_input("Projetos permitidos (separar por vírgula)")
         if st.button("Criar usuário"):
             c.execute("SELECT * FROM users WHERE username=?", (new_user,))
             if c.fetchone():
                 st.error("Usuário já existe.")
             else:
-                c.execute("INSERT INTO users (username, password, email, projects) VALUES (?, ?, ?, ?)",
-                          (new_user, new_pass, email, projetos))
+                c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (new_user, new_pass))
                 conn.commit()
                 st.success("Usuário registrado com sucesso.")
                 st.session_state.registration_mode = False
                 st.session_state.registration_unlocked = False
                 st.rerun()
+
     if st.button("Voltar ao Login"):
         st.session_state.registration_mode = False
         st.session_state.registration_unlocked = False
         st.rerun()
 
-elif st.session_state.admin_mode and not st.session_state.admin_authenticated:
-    st.subheader("Painel Administrativo - Acesso Restrito")
-    master_admin = st.text_input("Senha Mestra de Administração", type="password")
-    if st.button("Liberar Painel Admin"):
-        if master_admin == "#Heisenberg7":
-            st.session_state.admin_authenticated = True
-            st.session_state.admin_mode = True
-            st.experimental_set_query_params(admin='true')
-            st.rerun()
-        else:
-            st.error("Senha mestra incorreta.")
-    if st.button("Voltar ao Login"):
-        st.session_state.admin_mode = False
-        st.rerun()
-
-elif st.session_state.admin_mode and st.session_state.admin_authenticated:
-    st.subheader("Painel Administrativo")
-    usuarios = c.execute("SELECT username, projects FROM users").fetchall()
-    for u in usuarios:
-        user = u[0]
-        projetos_atuais = u[1] if u[1] else ""
-        st.markdown(f"#### 👤 {user}")
-        col1, col2, col3 = st.columns([1, 1, 2])
-        with col1:
-            if st.button(f"Excluir {user}"):
-                c.execute("DELETE FROM users WHERE username=?", (user,))
-                conn.commit()
-                st.success(f"Usuário {user} removido.")
-                st.rerun()
-        with col2:
-            nova_senha = st.text_input(f"Nova senha ({user})", key=f"senha_{user}")
-            if st.button(f"Atualizar senha {user}"):
-                c.execute("UPDATE users SET password=? WHERE username=?", (nova_senha, user))
-                conn.commit()
-                st.success(f"Senha de {user} atualizada.")
-        with col3:
-            novos_projetos = st.text_input(f"Projetos ({user})", value=projetos_atuais, key=f"projetos_{user}")
-            if st.button(f"Atualizar projetos {user}"):
-                c.execute("UPDATE users SET projects=? WHERE username=?", (novos_projetos, user))
-                conn.commit()
-                st.success(f"Projetos de {user} atualizados.")
-    if st.button("Sair do Painel Admin"):
-        st.session_state.admin_mode = False
-        st.session_state.admin_authenticated = False
-        st.rerun()
-
 elif st.session_state.authenticated:
     username = st.session_state.username
-    user_projects = st.session_state.projects
 
     st.sidebar.markdown(f"🔐 Logado como: **{username}**")
     if st.sidebar.button("Logout"):
         st.session_state.authenticated = False
         st.session_state.username = ""
-        st.session_state.projects = []
         st.rerun()
 
+    # Upload de arquivos
     st.markdown("### Upload de Arquivos")
     with st.form("upload_form"):
-        project = st.selectbox("Projeto", user_projects)
+        project = st.text_input("Projeto")
         discipline = st.text_input("Disciplina")
         phase = st.text_input("Fase")
         uploaded_file = st.file_uploader("Escolha o arquivo")
@@ -176,25 +120,35 @@ elif st.session_state.authenticated:
             st.success(f"Arquivo '{filename}' salvo com sucesso em {path}.")
             log_action(username, "upload", file_path)
 
+    # Pesquisa de arquivos
     st.markdown("### Pesquisa de Documentos")
     keyword = st.text_input("Buscar por palavra-chave")
     if keyword:
         matched_files = []
         for root, _, files in os.walk(BASE_DIR):
             for file in files:
-                if keyword.lower() in file.lower() and any(p in root for p in user_projects):
+                if keyword.lower() in file.lower():
                     matched_files.append(os.path.join(root, file))
+
         if matched_files:
             st.markdown("#### Resultados da busca:")
             for file in matched_files:
                 relative_path = os.path.relpath(file, BASE_DIR)
                 st.write(f"📄 {relative_path}")
                 with open(file, "rb") as f:
-                    st.download_button(label="📥 Baixar", data=f, file_name=os.path.basename(file))
+                    if file.endswith(".pdf"):
+                        st.download_button(label="📥 Baixar PDF", data=f, file_name=os.path.basename(file), mime="application/pdf")
+                    elif file.endswith(('.png', '.jpg', '.jpeg')):
+                        st.image(f.read(), caption=os.path.basename(file))
+                        f.seek(0)
+                        st.download_button(label="📥 Baixar Imagem", data=f, file_name=os.path.basename(file))
+                    else:
+                        st.download_button(label="📥 Baixar Arquivo", data=f, file_name=os.path.basename(file))
                 log_action(username, "download", file)
         else:
-            st.warning("Nenhum arquivo encontrado.")
+            st.warning("Nenhum arquivo encontrado com esse termo.")
 
+    # Histórico de ações
     st.markdown("### Histórico de Ações")
     if st.checkbox("Mostrar log de ações"):
         logs = c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100").fetchall()
