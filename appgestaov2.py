@@ -45,7 +45,7 @@ if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
 # Login, registro ou administração
-if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_mode:
+if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_authenticated:
     st.subheader("Login")
     login_user = st.text_input("Usuário")
     login_pass = st.text_input("Senha", type="password")
@@ -106,6 +106,8 @@ elif st.session_state.admin_mode and not st.session_state.admin_authenticated:
     if st.button("Liberar Painel Admin"):
         if master_admin == "#Heisenberg7":
             st.session_state.admin_authenticated = True
+            st.session_state.admin_mode = True
+            st.experimental_set_query_params(admin='true')
             st.rerun()
         else:
             st.error("Senha mestra incorreta.")
