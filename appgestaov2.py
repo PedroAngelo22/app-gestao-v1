@@ -66,6 +66,7 @@ if not st.session_state.authenticated and not st.session_state.registration_mode
         st.rerun()
     if st.button("Painel Administrativo"):
         st.session_state.admin_mode = True
+        st.session_state.admin_authenticated = False
         st.rerun()
 
 elif st.session_state.registration_mode and not st.session_state.authenticated:
