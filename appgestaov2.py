@@ -116,7 +116,7 @@ elif st.session_state.admin_mode and not st.session_state.admin_authenticated:
         st.session_state.admin_mode = False
         st.rerun()
 
-elif st.session_state.admin_mode and st.session_state.admin_authenticated:
+elif not st.session_state.authenticated and st.session_state.admin_mode and st.session_state.admin_authenticated:
     st.subheader("Painel Administrativo")
     usuarios = c.execute("SELECT username, projects FROM users").fetchall()
     for u in usuarios:
