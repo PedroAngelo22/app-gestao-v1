@@ -45,7 +45,7 @@ if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
 # Login, registro ou administração
-if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_authenticated:
+if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_authenticated and not st.session_state.admin_mode:
     st.subheader("Login")
     login_user = st.text_input("Usuário")
     login_pass = st.text_input("Senha", type="password")
