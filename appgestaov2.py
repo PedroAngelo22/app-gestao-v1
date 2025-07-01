@@ -39,12 +39,12 @@ if "registration_mode" not in st.session_state:
     st.session_state.registration_mode = False
 if "registration_unlocked" not in st.session_state:
     st.session_state.registration_unlocked = False
-if "admin_login_mode" not in st.session_state:
-    st.session_state.admin_login_mode = False
+if "admin_mode" not in st.session_state:
+    st.session_state.admin_mode = False
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
-# TELA DE LOGIN PRINCIPAL
+# Login, registro ou administração
 if not st.session_state.authenticated and not st.session_state.registration_mode and not st.session_state.admin_authenticated:
     st.subheader("Login")
     login_user = st.text_input("Usuário")
@@ -65,11 +65,11 @@ if not st.session_state.authenticated and not st.session_state.registration_mode
         st.session_state.registration_mode = True
         st.rerun()
     if st.button("Painel Administrativo"):
-        st.session_state.admin_login_mode = True
+        st.session_state.admin_mode = True
+        st.session_state.admin_authenticated = False
         st.rerun()
 
-# TELA DE REGISTRO
-elif st.session_state.registration_mode:
+elif st.session_state.registration_mode and not st.session_state.authenticated:
     st.subheader("Registro de Novo Usuário")
     master_pass = st.text_input("Senha Mestra", type="password")
     if st.button("Liberar Acesso"):
@@ -101,22 +101,22 @@ elif st.session_state.registration_mode:
         st.session_state.registration_unlocked = False
         st.rerun()
 
-# TELA DE LOGIN DO ADMIN
-elif st.session_state.admin_login_mode and not st.session_state.admin_authenticated:
+elif st.session_state.admin_mode and not st.session_state.admin_authenticated:
     st.subheader("Painel Administrativo - Acesso Restrito")
-    admin_pass = st.text_input("Senha Mestra de Administração", type="password")
+    master_admin = st.text_input("Senha Mestra de Administração", type="password")
     if st.button("Liberar Painel Admin"):
-        if admin_pass == "#Heisenberg7":
+        if master_admin == "#Heisenberg7":
             st.session_state.admin_authenticated = True
+            st.session_state.admin_mode = True
+            st.experimental_set_query_params(admin='true')
             st.rerun()
         else:
             st.error("Senha mestra incorreta.")
     if st.button("Voltar ao Login"):
-        st.session_state.admin_login_mode = False
+        st.session_state.admin_mode = False
         st.rerun()
 
-# TELA DE PAINEL ADMINISTRATIVO
-elif st.session_state.admin_authenticated:
+elif st.session_state.admin_mode and st.session_state.admin_authenticated:
     st.subheader("Painel Administrativo")
     usuarios = c.execute("SELECT username, projects FROM users").fetchall()
     for u in usuarios:
@@ -143,11 +143,10 @@ elif st.session_state.admin_authenticated:
                 conn.commit()
                 st.success(f"Projetos de {user} atualizados.")
     if st.button("Sair do Painel Admin"):
+        st.session_state.admin_mode = False
         st.session_state.admin_authenticated = False
-        st.session_state.admin_login_mode = False
         st.rerun()
 
-# TELA PRINCIPAL APÓS LOGIN DO USUÁRIO
 elif st.session_state.authenticated:
     username = st.session_state.username
     user_projects = st.session_state.projects
