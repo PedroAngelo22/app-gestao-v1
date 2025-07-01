@@ -44,7 +44,7 @@ if st.button("Entrar"):
     if c.fetchone():
         st.session_state["authenticated"] = True
         st.session_state["username"] = login_user
-        st.experimental_rerun()
+        st.rerun()
     else:
         st.error("Credenciais inválidas.")
 
