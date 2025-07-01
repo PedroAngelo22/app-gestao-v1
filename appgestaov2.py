@@ -67,14 +67,15 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
         new_user = st.text_input("Novo Usuário")
         new_pass = st.text_input("Nova Senha", type="password")
         if st.button("Criar usuário"):
-            try:
+            c.execute("SELECT * FROM users WHERE username=?", (new_user,))
+            if c.fetchone():
+                st.error("Usuário já existe.")
+            else:
                 c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (new_user, new_pass))
                 conn.commit()
                 st.success("Usuário registrado com sucesso.")
                 st.session_state.registration_mode = False
                 st.rerun()
-            except:
-                st.error("Usuário já existe.")
     elif master_pass != "":
         st.error("Senha Mestra incorreta.")
     if st.button("Voltar ao Login"):
@@ -83,6 +84,12 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
 
 elif st.session_state.authenticated:
     username = st.session_state.username
+
+    st.sidebar.markdown(f"🔐 Logado como: **{username}**")
+    if st.sidebar.button("Logout"):
+        st.session_state.authenticated = False
+        st.session_state.username = ""
+        st.rerun()
 
     # Upload de arquivos
     st.markdown("### Upload de Arquivos")
