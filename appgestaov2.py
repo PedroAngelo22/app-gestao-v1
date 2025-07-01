@@ -100,6 +100,50 @@ elif st.session_state.registration_mode and not st.session_state.authenticated:
         st.session_state.registration_unlocked = False
         st.rerun()
 
+elif st.session_state.admin_mode and not st.session_state.admin_authenticated:
+    st.subheader("Painel Administrativo - Acesso Restrito")
+    master_admin = st.text_input("Senha Mestra de Administração", type="password")
+    if st.button("Liberar Painel Admin"):
+        if master_admin == "#Heisenberg7":
+            st.session_state.admin_authenticated = True
+            st.rerun()
+        else:
+            st.error("Senha mestra incorreta.")
+    if st.button("Voltar ao Login"):
+        st.session_state.admin_mode = False
+        st.rerun()
+
+elif st.session_state.admin_authenticated:
+    st.subheader("Painel Administrativo")
+    usuarios = c.execute("SELECT username, projects FROM users").fetchall()
+    for u in usuarios:
+        user = u[0]
+        projetos_atuais = u[1] if u[1] else ""
+        st.markdown(f"#### 👤 {user}")
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button(f"Excluir {user}"):
+                c.execute("DELETE FROM users WHERE username=?", (user,))
+                conn.commit()
+                st.success(f"Usuário {user} removido.")
+                st.rerun()
+        with col2:
+            nova_senha = st.text_input(f"Nova senha ({user})", key=f"senha_{user}")
+            if st.button(f"Atualizar senha {user}"):
+                c.execute("UPDATE users SET password=? WHERE username=?", (nova_senha, user))
+                conn.commit()
+                st.success(f"Senha de {user} atualizada.")
+        with col3:
+            novos_projetos = st.text_input(f"Projetos ({user})", value=projetos_atuais, key=f"projetos_{user}")
+            if st.button(f"Atualizar projetos {user}"):
+                c.execute("UPDATE users SET projects=? WHERE username=?", (novos_projetos, user))
+                conn.commit()
+                st.success(f"Projetos de {user} atualizados.")
+    if st.button("Sair do Painel Admin"):
+        st.session_state.admin_mode = False
+        st.session_state.admin_authenticated = False
+        st.rerun()
+
 elif st.session_state.authenticated:
     username = st.session_state.username
     user_projects = st.session_state.projects
