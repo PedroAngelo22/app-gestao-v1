@@ -1,11 +1,8 @@
 import os
 import shutil
-import smtplib
 from datetime import datetime
 import streamlit as st
 import sqlite3
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 # Banco de dados SQLite
 conn = sqlite3.connect('document_manager.db', check_same_thread=False)
@@ -13,33 +10,6 @@ c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, email TEXT, projects TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS logs (timestamp TEXT, user TEXT, action TEXT, file TEXT)''')
 conn.commit()
-
-# Parâmetros de envio de e-mail (substituir com credenciais reais)
-EMAIL_FROM = "seu_email@provedor.com"
-EMAIL_PASSWORD = "sua_senha"
-EMAIL_SMTP = "smtp.provedor.com"
-EMAIL_PORT = 587
-
-# Envio de e-mail após upload
-def enviar_email_upload(usuario, arquivo, projeto):
-    c.execute("SELECT email FROM users WHERE instr(projects, ?) > 0", (projeto,))
-    destinatarios = [row[0] for row in c.fetchall() if row[0]]
-    if not destinatarios:
-        return
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_FROM
-        msg['To'] = ", ".join(destinatarios)
-        msg['Subject'] = f"[Projeto {projeto}] Novo upload de {usuario}"
-        body = f"O usuário {usuario} realizou o upload do arquivo '{arquivo}' no projeto '{projeto}'."
-        msg.attach(MIMEText(body, 'plain'))
-        server = smtplib.SMTP(EMAIL_SMTP, EMAIL_PORT)
-        server.starttls()
-        server.login(EMAIL_FROM, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        st.warning(f"Erro ao enviar e-mail: {e}")
 
 BASE_DIR = "uploads"
 if not os.path.exists(BASE_DIR):
@@ -158,7 +128,6 @@ elif st.session_state.authenticated:
                 f.write(uploaded_file.read())
             st.success(f"Arquivo '{filename}' salvo com sucesso em {path}.")
             log_action(username, "upload", file_path)
-            enviar_email_upload(username, filename, project)
 
     st.markdown("### Pesquisa de Documentos")
     keyword = st.text_input("Buscar por palavra-chave")
